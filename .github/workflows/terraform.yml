@@ -1,6 +1,7 @@
 name: CI/CD - Database Infra
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [main, hml]
   push:
@@ -28,23 +29,32 @@ jobs:
         run: terraform validate -no-color
 
   deploy:
-    if: github.event_name == 'push' && vars.ENABLE_DEPLOY == 'true' && vars.VPC_ID != '' && vars.PRIVATE_SUBNET_IDS != '' && vars.VPC_CIDR != ''
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && vars.ENABLE_DEPLOY == 'true' && vars.TF_STATE_READY == 'true' && vars.TF_STATE_BUCKET != '' && vars.VPC_ID != '' && vars.PRIVATE_SUBNET_IDS != '' && vars.VPC_CIDR != ''
     needs: validate
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'homologation' }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: '1.9.8'
+
       - name: Terraform init
         working-directory: terraform
-        run: terraform init -input=false
+        run: >-
+          terraform init -input=false
+          -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          -backend-config="key=oficina-db-infra/${{ github.ref_name }}/terraform.tfstate"
+          -backend-config="region=${{ vars.AWS_REGION || 'us-east-1' }}"
+          -backend-config="encrypt=true"
+
       - name: Terraform apply
         working-directory: terraform
         env:
@@ -54,3 +64,11 @@ jobs:
           TF_VAR_private_subnet_ids: ${{ vars.PRIVATE_SUBNET_IDS }}
           TF_VAR_vpc_cidr: ${{ vars.VPC_CIDR }}
         run: terraform apply -auto-approve -input=false
+
+      - name: Publish database outputs
+        working-directory: terraform
+        run: |
+          echo "## Database infrastructure" >> "$GITHUB_STEP_SUMMARY"
+          echo "DB_ENDPOINT=$(terraform output -raw db_endpoint)" >> "$GITHUB_STEP_SUMMARY"
+          echo "DB_SECRET_ARN=$(terraform output -raw db_secret_arn)" >> "$GITHUB_STEP_SUMMARY"
+          echo "DB_SECURITY_GROUP_ID=$(terraform output -raw db_security_group_id)" >> "$GITHUB_STEP_SUMMARY"
