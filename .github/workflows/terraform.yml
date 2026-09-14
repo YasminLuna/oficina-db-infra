@@ -1,0 +1,56 @@
+name: CI/CD - Database Infra
+
+on:
+  pull_request:
+    branches: [main, hml]
+  push:
+    branches: [hml, main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.8'
+      - name: Terraform fmt
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+      - name: Terraform init
+        working-directory: terraform
+        run: terraform init -backend=false -input=false
+      - name: Terraform validate
+        working-directory: terraform
+        run: terraform validate -no-color
+
+  deploy:
+    if: github.event_name == 'push' && vars.VPC_ID != '' && vars.PRIVATE_SUBNET_IDS != '' && vars.VPC_CIDR != ''
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'homologation' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.8'
+      - name: Terraform init
+        working-directory: terraform
+        run: terraform init -input=false
+      - name: Terraform apply
+        working-directory: terraform
+        env:
+          TF_VAR_aws_region: ${{ vars.AWS_REGION || 'us-east-1' }}
+          TF_VAR_environment: ${{ github.ref_name == 'main' && 'prod' || 'hml' }}
+          TF_VAR_vpc_id: ${{ vars.VPC_ID }}
+          TF_VAR_private_subnet_ids: ${{ vars.PRIVATE_SUBNET_IDS }}
+          TF_VAR_vpc_cidr: ${{ vars.VPC_CIDR }}
+        run: terraform apply -auto-approve -input=false
