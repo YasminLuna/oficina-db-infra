@@ -28,7 +28,7 @@ jobs:
         run: terraform validate -no-color
 
   deploy:
-    if: github.event_name == 'push' && vars.VPC_ID != '' && vars.PRIVATE_SUBNET_IDS != '' && vars.VPC_CIDR != ''
+    if: github.event_name == 'push' && vars.ENABLE_DEPLOY == 'true' && vars.VPC_ID != '' && vars.PRIVATE_SUBNET_IDS != '' && vars.VPC_CIDR != ''
     needs: validate
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'homologation' }}
