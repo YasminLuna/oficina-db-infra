@@ -43,24 +43,24 @@ resource "aws_security_group" "db" {
 }
 
 resource "aws_db_instance" "postgres" {
-  identifier                  = "oficina-${var.environment}"
-  engine                      = "postgres"
-  instance_class              = "db.t4g.micro"
-  allocated_storage           = 20
-  max_allocated_storage       = 30
-  storage_type                = "gp3"
-  storage_encrypted           = true
-  db_name                     = var.db_name
-  username                    = var.db_user
-  password                    = random_password.db.result
-  db_subnet_group_name        = aws_db_subnet_group.this.name
-  vpc_security_group_ids      = [aws_security_group.db.id]
-  publicly_accessible         = false
-  backup_retention_period     = 7
-  deletion_protection         = false
-  skip_final_snapshot         = true
+  identifier                   = "oficina-${var.environment}"
+  engine                       = "postgres"
+  instance_class               = "db.t4g.micro"
+  allocated_storage            = 20
+  max_allocated_storage        = 30
+  storage_type                 = "gp3"
+  storage_encrypted            = true
+  db_name                      = var.db_name
+  username                     = var.db_user
+  password                     = random_password.db.result
+  db_subnet_group_name         = aws_db_subnet_group.this.name
+  vpc_security_group_ids       = [aws_security_group.db.id]
+  publicly_accessible          = false
+  backup_retention_period      = 1
+  deletion_protection          = false
+  skip_final_snapshot          = true
   performance_insights_enabled = true
-  apply_immediately           = true
+  apply_immediately            = true
 
   tags = {
     Project     = "FIAP Tech Challenge Fase 3"
